@@ -60,14 +60,16 @@ func assistantWsHandler(c *websocket.Conn) {
 		delete(globalMessagesChannel, randReceiverIdx)
 	}()
 
-	if alertVal != "" {
-		if err := c.WriteJSON(wsDto{
-			Type:  alertMessageType,
-			Value: alertVal,
-		}); err != nil {
-			return
+	/*
+		if alertVal != "" {
+			if err := c.WriteJSON(wsDto{
+				Type:  alertMessageType,
+				Value: alertVal,
+			}); err != nil {
+				return
+			}
 		}
-	}
+	*/
 
 	baseData := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(latestBaseData), &baseData); err != nil {
