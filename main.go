@@ -36,7 +36,7 @@ func main() {
 		return fiber.ErrUpgradeRequired
 	})
 
-	app.Get("/assistant-ws", websocket.New(assistantWsHandler))
+	app.Get("/ws", websocket.New(assistantWsHandler))
 	app.Get("/stats", statsEndpoint)
 	app.Get("/map", mapGetEndpoint)
 	app.Get("/time", func(ctx *fiber.Ctx) error {
