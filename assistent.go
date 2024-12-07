@@ -157,6 +157,17 @@ func getInitialAiChat() []aiChatMessage {
 	currWhether := nasaWhetherChartData[len(nasaWhetherChartData)-1]
 	currDate := time.Now().Format("2006-01-02")
 	b := "`"
+
+	items, err := getCurrentItems()
+	if err != nil {
+		log.Errorf("Could not get current items for ai chat")
+	}
+
+	itemsJson, err := json.Marshal(items)
+	if err != nil {
+		log.Fatalf("Failed to marshal items to JSON: %v", err)
+	}
+
 	return []aiChatMessage{{
 		Role: "system",
 		Message: `
@@ -165,7 +176,7 @@ func getInitialAiChat() []aiChatMessage {
 			wysłania na końcu odpowiedzi specjalne fragmenty XML, które będą automatycznie interpretowane przez nasz system i
 			będą wywoływać określone akcje. Dostępne elementy XML to:
 			- ` + b + `<alert label="Przykładowy tytuł alertu" />` + b + ` - wyświetla użytkownikowi alert z podanym tytułem odtwarzając dźwięk alarmu oraz zmieniając kolor tła na czerwony, masz pozwolenie na użycie jego w sytuacjach kryzysowych, zagrażających życiu i zdrowiu, za prośbą użytkownika lub w innych sytuacjach, które uznasz za stosowne, ponadto nie potrzebujesz zapytać o zgodę na jego użycie.
-			- ` + b + `<info label="Przykładowy tekst" />` + b + ` - wyświetla wszystkim użytkownikom w bazie i okolicach bazy na marsie tekst w formie powiadomienia na ekranie, masz pozwolenie na użycie go w dowolnych sytuacjach, ale z umiarem, nie przesadzaj z ilością wyświetlanych komunikatów, ponadto nie potrzebujesz zapytać o zgodę na jego użycie.
+			- ` + b + `<info label="Przykładowy tekst" />` + b + ` - wyświetla wszystkim użytkownikom w bazie i okolicach bazy na marsie tekst w formie powiadomienia na ekranie, masz pozwolenie na użycie go w dowolnych sytuacjach, szczególnie gdy przedmiot z naszej bazy może się przydać do określonej akcji, ale z umiarem, nie przesadzaj z ilością wyświetlanych komunikatów, ponadto nie potrzebujesz zapytać o zgodę na jego użycie.
 			- ` + b + `<report label="Przykładowy tytuł raportu" content="Dłuższa zawartość" />` + b + ` - zapisuje w bazie danych raport z podanym tytułem i treścią, masz pozwolenie na użycie go w dowolnych sytuacjach, ale z umiarem, nie przesadzaj z ilością zapisywanych raportów. Rób to za poleceniem, bądź automatycznie jeśli zauważysz coś istotnego, nieznanego lub niebezpiecznego, niezwykłego lub wartego zapisania, ponadto nie potrzebujesz zapytać o zgodę na jego użycie.
 
 			Pamiętaj, iż wiadomości typu element XML nie są widoczne bezpośrednio dla użytkownika, ale są interpretowane przez system i wywołują określone akcje.
@@ -181,7 +192,8 @@ func getInitialAiChat() []aiChatMessage {
 			- ciśnienie: ` + b + fmt.Sprintf("%.2f", currWhether.Pressure) + b + ` hPa,
 			- prędkość wiatru: ` + b + fmt.Sprintf("%.2f", currWhether.Wind) + b + ` m/s.
 
-			Dzisiejsza data i godzina to:` + currDate,
+			Dzisiejsza data i godzina to:` + currDate + `
+			Aktualne przedmioty w bazie danych: ` + string(itemsJson),
 	}}
 }
 

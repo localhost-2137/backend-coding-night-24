@@ -47,6 +47,9 @@ func main() {
 		return ctx.SendString(latestBaseData)
 	})
 
+	app.Get("/items", GetItemsEndpoint)
+	app.Get("/reports", getReportsEndpoint)
+
 	app.Put("/map", mapPutEndpoint)
 
 	log.Fatal(app.Listen(":3000"))
