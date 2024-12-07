@@ -6,7 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"os"
 	"sort"
-	"strings"
+	"strconv"
 )
 
 type nasaWhetherT struct {
@@ -85,8 +85,15 @@ func initNasaData() error {
 }
 
 func statsEndpoint(ctx *fiber.Ctx) error {
-	if strings.ToLower(ctx.Query("all")) == "true" {
-		return ctx.JSON(nasaWhetherChartData)
+	limit, err := strconv.Atoi(ctx.Query("limit"))
+	if err != nil {
+		limit = len(nasaWhetherChartData)
 	}
-	return ctx.JSON(nasaWhetherChartData[len(nasaWhetherChartData)-1])
+
+	if limit > len(nasaWhetherChartData) {
+		limit = len(nasaWhetherChartData)
+	}
+	
+	data := nasaWhetherChartData[len(nasaWhetherChartData)-limit:]
+	return ctx.JSON(data)
 }
