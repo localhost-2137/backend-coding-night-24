@@ -13,6 +13,7 @@ import (
 	"strings"
 )
 
+var alertVal = ""
 var latestBaseData = `{"o2": 100, "inside": 0, "open": false}`
 var openaiClient *openai.Client
 
@@ -59,6 +60,30 @@ func assistantWsHandler(c *websocket.Conn) {
 		delete(globalMessagesChannel, randReceiverIdx)
 	}()
 
+	if alertVal != "" {
+		if err := c.WriteJSON(wsDto{
+			Type:  alertMessageType,
+			Value: alertVal,
+		}); err != nil {
+			return
+		}
+	}
+
+	baseData := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(latestBaseData), &baseData); err != nil {
+		log.Errorf("Failed to unmarshal base data: %v", err)
+		return
+	}
+
+	err := c.WriteJSON(wsDto{
+		Type:  baseDataMessageType,
+		Value: baseData,
+	})
+	if err != nil {
+		log.Errorf("Failed to send base data to the client: %v", err)
+		return
+	}
+
 	for {
 		msg := <-globalMessagesChannel[randReceiverIdx]
 		if err := c.WriteJSON(msg); err != nil {
@@ -104,6 +129,7 @@ func chatHandler(c *websocket.Conn, receiverIdx int) {
 				}
 			}
 		case endAlertMessageType:
+			alertVal = ""
 			for _, ch := range globalMessagesChannel {
 				ch <- wsDto{
 					Type:  endAlertMessageType,
@@ -111,6 +137,7 @@ func chatHandler(c *websocket.Conn, receiverIdx int) {
 				}
 			}
 		case alertMessageType:
+			alertVal = request.Value.(string)
 			for idx, ch := range globalMessagesChannel {
 				if idx != receiverIdx {
 					ch <- wsDto{
@@ -228,6 +255,7 @@ func handleAiMessage(chatHistory *[]aiChatMessage, msg string, receiverIdx int) 
 		for _, ch := range globalMessagesChannel {
 			switch elem.XMLName.Local {
 			case "alert":
+				alertVal = elem.Label
 				ch <- wsDto{
 					Type:  alertMessageType,
 					Value: elem.Label,
