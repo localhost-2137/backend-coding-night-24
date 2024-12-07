@@ -61,6 +61,7 @@ func assistantWsHandler(c *websocket.Conn) {
 		msg := <-globalMessagesChannel[randReceiverIdx]
 		if err := c.WriteJSON(msg); err != nil {
 			fmt.Printf("Failed to send message to the client: %v\n", err)
+			break
 		}
 	}
 }
