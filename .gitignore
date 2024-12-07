@@ -23,6 +23,7 @@ go.work
 
 
 # others:
+.env
 .idea/
 database.db
 
