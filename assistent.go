@@ -90,6 +90,13 @@ func chatHandler(c *websocket.Conn, receiverIdx int) {
 					log.Errorf("Failed to handle AI message: %v", err)
 				}
 			}
+		case baseDataMessageType:
+			for _, ch := range globalMessagesChannel {
+				ch <- wsDto{
+					Type:  baseDataMessageType,
+					Value: request.Value,
+				}
+			}
 		}
 	}
 }
