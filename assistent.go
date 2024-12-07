@@ -18,9 +18,10 @@ var openaiClient *openai.Client
 type messageType string
 
 const (
-	doorDataMessageType messageType = "door_data"
+	baseDataMessageType messageType = "base_data"
 	reportMessageType   messageType = "report"
 	alertMessageType    messageType = "alert"
+	infoMessageType     messageType = "info"
 	textMessageType     messageType = "text"
 	aiMessageType       messageType = "ai"
 )
@@ -47,24 +48,24 @@ func initAssistant() {
 }
 
 func assistantWsHandler(c *websocket.Conn) {
-	go chatHandler(c)
-	randIdx := rand.Int()
+	randReceiverIdx := rand.Int()
+	go chatHandler(c, randReceiverIdx)
 
-	globalMessagesChannel[randIdx] = make(chan wsDto)
+	globalMessagesChannel[randReceiverIdx] = make(chan wsDto)
 	defer func() {
-		close(globalMessagesChannel[randIdx])
-		delete(globalMessagesChannel, randIdx)
+		close(globalMessagesChannel[randReceiverIdx])
+		delete(globalMessagesChannel, randReceiverIdx)
 	}()
 
 	for {
-		msg := <-globalMessagesChannel[randIdx]
+		msg := <-globalMessagesChannel[randReceiverIdx]
 		if err := c.WriteJSON(msg); err != nil {
 			fmt.Printf("Failed to send message to the client: %v\n", err)
 		}
 	}
 }
 
-func chatHandler(c *websocket.Conn) {
+func chatHandler(c *websocket.Conn, receiverIdx int) {
 	aiConversationHistory := getInitialAiChat()
 
 	for {
@@ -84,7 +85,7 @@ func chatHandler(c *websocket.Conn) {
 		switch request.Type {
 		case aiMessageType:
 			if msg, ok := request.Value.(string); ok {
-				if err := handleAiMessage(&aiConversationHistory, msg); err != nil {
+				if err := handleAiMessage(&aiConversationHistory, msg, receiverIdx); err != nil {
 					log.Errorf("Failed to handle AI message: %v", err)
 				}
 			}
@@ -103,7 +104,7 @@ func getInitialAiChat() []aiChatMessage {
 			wysłania na końcu odpowiedzi specjalne fragmenty XML, które będą automatycznie interpretowane przez nasz system i
 			będą wywoływać określone akcje. Dostępne elementy XML to:
 			- ` + b + `<alert label="Przykładowy tytuł alertu" />` + b + ` - wyświetla użytkownikowi alert z podanym tytułem odtwarzając dźwięk alarmu oraz zmieniając kolor tła na czerwony, masz pozwolenie na użycie jego w sytuacjach kryzysowych, zagrażających życiu i zdrowiu, za prośbą użytkownika lub w innych sytuacjach, które uznasz za stosowne, ponadto nie potrzebujesz zapytać o zgodę na jego użycie.
-			- ` + b + `<text label="Przykładowy tekst" />` + b + ` - wyświetla wszystkim użytkownikom w bazie i okolicach bazy na marsie tekst w formie powiadomienia na ekranie, masz pozwolenie na użycie go w dowolnych sytuacjach, ale z umiarem, nie przesadzaj z ilością wyświetlanych komunikatów, ponadto nie potrzebujesz zapytać o zgodę na jego użycie.
+			- ` + b + `<info label="Przykładowy tekst" />` + b + ` - wyświetla wszystkim użytkownikom w bazie i okolicach bazy na marsie tekst w formie powiadomienia na ekranie, masz pozwolenie na użycie go w dowolnych sytuacjach, ale z umiarem, nie przesadzaj z ilością wyświetlanych komunikatów, ponadto nie potrzebujesz zapytać o zgodę na jego użycie.
 			- ` + b + `<report label="Przykładowy tytuł raportu" content="Dłuższa zawartość" />` + b + ` - zapisuje w bazie danych raport z podanym tytułem i treścią, masz pozwolenie na użycie go w dowolnych sytuacjach, ale z umiarem, nie przesadzaj z ilością zapisywanych raportów. Rób to za poleceniem, bądź automatycznie jeśli zauważysz coś istotnego, nieznanego lub niebezpiecznego, niezwykłego lub wartego zapisania, ponadto nie potrzebujesz zapytać o zgodę na jego użycie.
 
 			Pamiętaj, iż wiadomości typu element XML nie są widoczne bezpośrednio dla użytkownika, ale są interpretowane przez system i wywołują określone akcje.
@@ -151,7 +152,7 @@ func extractAndParseXMLElements(content string) ([]xmlElementDto, error) {
 	return elements, nil
 }
 
-func handleAiMessage(chatHistory *[]aiChatMessage, msg string) error {
+func handleAiMessage(chatHistory *[]aiChatMessage, msg string, receiverIdx int) error {
 	*chatHistory = append(*chatHistory, aiChatMessage{
 		Message: msg,
 		Role:    "user",
@@ -183,6 +184,11 @@ func handleAiMessage(chatHistory *[]aiChatMessage, msg string) error {
 		Role:    "system",
 	})
 
+	globalMessagesChannel[receiverIdx] <- wsDto{
+		Type:  textMessageType,
+		Value: resp,
+	}
+
 	elements, err := extractAndParseXMLElements(resp)
 	if err != nil {
 		return err
@@ -196,7 +202,7 @@ func handleAiMessage(chatHistory *[]aiChatMessage, msg string) error {
 					Type:  alertMessageType,
 					Value: elem.Label,
 				}
-			case "text":
+			case "info":
 				ch <- wsDto{
 					Type:  textMessageType,
 					Value: elem.Label,
