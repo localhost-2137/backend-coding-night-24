@@ -13,7 +13,7 @@ type reportDto struct {
 }
 
 func getReportsEndpoint(ctx *fiber.Ctx) error {
-	rows, err := db.Query("SELECT id, label, content, created_at FROM reports")
+	rows, err := db.Query("SELECT id, label, content, created_at FROM reports ORDER BY created_at DESC")
 	if err != nil {
 		log.Errorf("Failed to fetch reports: %v", err)
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
