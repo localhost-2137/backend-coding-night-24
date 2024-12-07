@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"time"
 )
 
 var alertVal = ""
@@ -154,6 +155,7 @@ func chatHandler(c *websocket.Conn, receiverIdx int) {
 
 func getInitialAiChat() []aiChatMessage {
 	currWhether := nasaWhetherChartData[len(nasaWhetherChartData)-1]
+	currDate := time.Now().Format("2006-01-02")
 	b := "`"
 	return []aiChatMessage{{
 		Role: "system",
@@ -178,7 +180,8 @@ func getInitialAiChat() []aiChatMessage {
 			- średnia temperatura: ` + b + fmt.Sprintf("%.2f", currWhether.TempAvg) + b + `°C,
 			- ciśnienie: ` + b + fmt.Sprintf("%.2f", currWhether.Pressure) + b + ` hPa,
 			- prędkość wiatru: ` + b + fmt.Sprintf("%.2f", currWhether.Wind) + b + ` m/s.
-		`,
+
+			Dzisiejsza data i godzina to:` + currDate,
 	}}
 }
 
@@ -188,15 +191,20 @@ type xmlElementDto struct {
 	Content string `xml:"content,attr"`
 }
 
-func extractAndParseXMLElements(content string) ([]xmlElementDto, error) {
+// returns elements, new content, error
+func extractAndParseXMLElements(content string) ([]xmlElementDto, string, error) {
 	var xmlElems []string
+	newContent := ""
 
 	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "<") && strings.HasSuffix(line, "/>") {
-			xmlElems = append(xmlElems, line)
+		trimmedLine := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmedLine, "<") && strings.HasSuffix(trimmedLine, "/>") {
+			xmlElems = append(xmlElems, trimmedLine)
+		} else {
+			newContent += line + "\n"
 		}
 	}
+	newContent = strings.TrimSuffix(newContent, "\n")
 
 	var elements []xmlElementDto
 	for _, xmlStr := range xmlElems {
@@ -208,7 +216,7 @@ func extractAndParseXMLElements(content string) ([]xmlElementDto, error) {
 		elements = append(elements, elem)
 	}
 
-	return elements, nil
+	return elements, newContent, nil
 }
 
 func handleAiMessage(chatHistory *[]aiChatMessage, msg string, receiverIdx int) error {
@@ -237,7 +245,12 @@ func handleAiMessage(chatHistory *[]aiChatMessage, msg string, receiverIdx int) 
 	}
 
 	resp := apiResponse.Choices[0].Message.Content
-	fmt.Println(resp)
+	elements, resp, err := extractAndParseXMLElements(resp)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("AI response: %s", resp)
 	*chatHistory = append(*chatHistory, aiChatMessage{
 		Message: resp,
 		Role:    "system",
@@ -246,11 +259,6 @@ func handleAiMessage(chatHistory *[]aiChatMessage, msg string, receiverIdx int) 
 	globalMessagesChannel[receiverIdx] <- wsDto{
 		Type:  textMessageType,
 		Value: resp,
-	}
-
-	elements, err := extractAndParseXMLElements(resp)
-	if err != nil {
-		return err
 	}
 
 	for _, elem := range elements {
@@ -264,10 +272,14 @@ func handleAiMessage(chatHistory *[]aiChatMessage, msg string, receiverIdx int) 
 				}
 			case "info":
 				ch <- wsDto{
-					Type:  textMessageType,
+					Type:  infoMessageType,
 					Value: elem.Label,
 				}
 			case "report":
+				if err := addReportToDb(elem.Label, elem.Content); err != nil {
+					log.Errorf("Failed to add report to the database: %v", err)
+					continue
+				}
 				ch <- wsDto{
 					Type:  reportMessageType,
 					Value: raportMessage{Label: elem.Label, Content: elem.Content},
@@ -277,4 +289,9 @@ func handleAiMessage(chatHistory *[]aiChatMessage, msg string, receiverIdx int) 
 	}
 
 	return nil
+}
+
+func addReportToDb(label, content string) error {
+	_, err := db.Exec("INSERT INTO reports (label, content) VALUES (?, ?)", label, content)
+	return err
 }
