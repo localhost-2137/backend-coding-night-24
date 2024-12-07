@@ -42,6 +42,10 @@ func main() {
 	app.Get("/time", func(ctx *fiber.Ctx) error {
 		return ctx.SendString(strconv.FormatInt(time.Now().UnixMilli(), 10))
 	})
+	app.Get("/base-data", func(ctx *fiber.Ctx) error {
+		ctx.Set("Content-Type", "application/json")
+		return ctx.SendString(latestBaseData)
+	})
 
 	app.Put("/map", mapPutEndpoint)
 

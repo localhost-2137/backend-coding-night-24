@@ -13,12 +13,14 @@ import (
 	"strings"
 )
 
+var latestBaseData = `{"o2": 100, "inside": 0, "open": false}`
 var openaiClient *openai.Client
 
 type messageType string
 
 const (
 	baseDataMessageType messageType = "base_data"
+	endAlertMessageType messageType = "end_alert"
 	reportMessageType   messageType = "report"
 	alertMessageType    messageType = "alert"
 	infoMessageType     messageType = "info"
@@ -91,10 +93,30 @@ func chatHandler(c *websocket.Conn, receiverIdx int) {
 				}
 			}
 		case baseDataMessageType:
+			if latestBaseDataRaw, err := json.Marshal(request.Value); err == nil {
+				latestBaseData = string(latestBaseDataRaw)
+			}
+
 			for _, ch := range globalMessagesChannel {
 				ch <- wsDto{
 					Type:  baseDataMessageType,
 					Value: request.Value,
+				}
+			}
+		case endAlertMessageType:
+			for _, ch := range globalMessagesChannel {
+				ch <- wsDto{
+					Type:  endAlertMessageType,
+					Value: request.Value,
+				}
+			}
+		case alertMessageType:
+			for idx, ch := range globalMessagesChannel {
+				if idx != receiverIdx {
+					ch <- wsDto{
+						Type:  alertMessageType,
+						Value: request.Value,
+					}
 				}
 			}
 		}
