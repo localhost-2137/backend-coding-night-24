@@ -74,7 +74,7 @@ func chatHandler(c *websocket.Conn, receiverIdx int) {
 		_, msg, err := c.ReadMessage()
 		if err != nil {
 			fmt.Printf("Failed to read message from the client: %v\n", err)
-			continue
+			break
 		}
 
 		if err := json.Unmarshal(msg, &request); err != nil {
